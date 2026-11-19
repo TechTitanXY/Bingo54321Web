@@ -1,0 +1,157 @@
+.bingo-board {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+    max-width: 750px;
+    margin: 0 auto;
+}
+
+.bingo-column {
+    display: grid;
+    grid-template-rows: repeat(16, minmax(0, 1fr));
+    gap: 2px;
+}
+
+.bingo-column-header {
+    background-color: #173d75;
+    color: white;
+    font-size: 2rem;
+    font-weight: 800;
+    text-align: center;
+    border-radius: 6px;
+    padding: 8px 0;
+}
+
+.bingo-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #f1f5f9;
+    color: #1e293b;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 3px 2px;
+    font-size: 1.25rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+    .bingo-number.called {
+        background-color: #16a34a;
+        color: white;
+        border-color: #15803d;
+    }
+
+    .bingo-number.latest {
+        background-color: #facc15;
+        color: #173d75;
+        border-color: #eab308;
+    }
+
+@media (max-width: 600px) {
+    .bingo-board {
+        gap: 4px;
+    }
+
+    .bingo-column {
+        gap: 2px;
+    }
+
+    .bingo-column-header {
+        font-size: 1.4rem;
+    }
+
+    .bingo-number {
+        font-size: 0.9rem;
+        padding: 5px 1px;
+    }
+}
+
+    /* Main application layout */
+
+    .bingo-app {
+        width: 100%;
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 20px;
+        font-family: Arial, Helvetica, sans-serif;
+        color: #1e293b;
+    }
+
+    .bingo-header {
+        text-align: center;
+        margin-bottom: 20px;
+    }
+
+        .bingo-header h1 {
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            color: #173d75;
+            margin: 0;
+        }
+
+        .bingo-header p {
+            font-size: 1.2rem;
+            margin: 8px 0;
+        }
+
+    .current-call-panel {
+        background-color: #173d75;
+        color: white;
+        border-radius: 12px;
+        padding: 18px;
+        text-align: center;
+        margin-bottom: 18px;
+    }
+
+        .current-call-panel h2 {
+            font-size: 1.2rem;
+            margin: 0;
+        }
+
+    .current-call-number {
+        font-size: clamp(3rem, 8vw, 6rem);
+        font-weight: 800;
+        color: #facc15;
+        margin: 10px 0;
+    }
+
+    .current-call-panel p {
+        margin: 0;
+    }
+
+    .bingo-controls {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 15px;
+        margin-bottom: 24px;
+    }
+
+    .bingo-controls button {
+        padding: 14px 24px;
+        border: none;
+        border-radius: 8px;
+        background-color: #16a34a;
+        color: white;
+        font-size: 1.1rem;
+        font-weight: bold;
+        cursor: pointer;
+    }
+
+    .bingo-controls button:hover {
+        background-color: #15803d;
+    }
+
+    .bingo-controls button:disabled {
+        background-color: #94a3b8;
+        cursor: not-allowed;
+    }
+
+    .bingo-controls .new-game-button {
+        background-color: #475569;
+    }
+
+    .bingo-controls .new-game-button:hover {
+        background-color: #334155;
+    }
