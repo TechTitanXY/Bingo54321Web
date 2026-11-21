@@ -2,9 +2,32 @@ import { useEffect, useState } from "react";
 import BingoBoard from "./components/BingoBoard";
 import { callNextNumber } from "./services/bingoService";
 import type { BingoCall } from "./types/bingoTypes";
+import {
+    announceBingoCall,
+    isVoiceSupported,
+    stopBingoAnnouncement
+} from "./services/bingoSpeechService";
 import "./styles/bingo.css";
 
 const STORAGE_KEY = "54321-bingo-called-numbers";
+
+const VOICE_STORAGE_KEY = "54321-bingo-voice-enabled";
+
+function loadVoicePreference(): boolean {
+    const supported = isVoiceSupported();
+
+    if (!supported) {
+        return false;
+    }
+
+    try {
+        const saved = sessionStorage.getItem(VOICE_STORAGE_KEY);
+
+        return saved === null ? true : saved !== "false";
+    } catch {
+        return true;
+    }
+}
 
 function loadSavedNumbers(): BingoCall[] {
     try {
@@ -66,6 +89,28 @@ function App() {
     const [calledNumbers, setCalledNumbers] =
         useState<BingoCall[]>(loadSavedNumbers);
 
+    const voiceSupported = isVoiceSupported();
+
+    const [voiceEnabled, setVoiceEnabled] =
+        useState<boolean>(loadVoicePreference);
+
+    useEffect(() => {
+        try {
+            sessionStorage.setItem(
+                VOICE_STORAGE_KEY,
+                String(voiceEnabled)
+            );
+        } catch {
+            // Continue if browser storage is unavailable.
+        }
+    }, [voiceEnabled]);
+
+    const [autoRunning, setAutoRunning] = useState(false);
+    const [autoHasStarted, setAutoHasStarted] = useState(false);
+    const [intervalSeconds, setIntervalSeconds] = useState(10);
+    const [completionPhase, setCompletionPhase] = useState<"idle" | "final-number" | "message">("idle");
+
+
     useEffect(() => {
         try {
             sessionStorage.setItem(
@@ -83,8 +128,73 @@ function App() {
             : null;
 
     const isGameComplete = calledNumbers.length === 75;
+    
+    useEffect(() => {
+        if (completionPhase === "idle") {
+            return;
+        }
+
+        const timerId = window.setTimeout(() => {
+            if (completionPhase === "final-number") {
+                setCompletionPhase("message");
+            } else {
+                setCompletionPhase("idle");
+            }
+        }, 5000);
+
+        return () => {
+            window.clearTimeout(timerId);
+        };
+    }, [completionPhase]);
+
+
+    // Schedule one automatic call at a time.
+    // A change to the game or interval resets the timer.
+    useEffect(() => {
+        if (!autoRunning || isGameComplete) {
+            return;
+        }
+
+        const timerId = window.setTimeout(() => {
+            const nextCall = callNextNumber(calledNumbers);
+
+            if (nextCall === null) {
+                setAutoRunning(false);
+                return;
+            }
+
+            setCalledNumbers(previous => [
+                ...previous,
+                nextCall
+            ]);
+
+            if (voiceEnabled) {
+                announceBingoCall(nextCall);
+            }
+
+            if (calledNumbers.length === 74) {
+                setCompletionPhase("final-number");
+                setAutoRunning(false);
+            }
+
+        }, intervalSeconds * 1000);
+
+        return () => {
+            window.clearTimeout(timerId);
+        };
+    }, [
+        autoRunning,
+        calledNumbers,
+        intervalSeconds,
+        voiceEnabled,
+        isGameComplete
+    ]);
 
     function handleNextNumber() {
+        if (autoRunning || isGameComplete) {
+            return;
+        }
+
         const nextCall = callNextNumber(calledNumbers);
 
         if (nextCall !== null) {
@@ -92,7 +202,50 @@ function App() {
                 ...previous,
                 nextCall
             ]);
+
+            if (voiceEnabled) {
+                announceBingoCall(nextCall);
+            }
+
+            if (calledNumbers.length === 74) {
+                setCompletionPhase("final-number");
+            }
         }
+    }
+
+    function handleAutomaticToggle() {
+        if (autoRunning) {
+            setAutoRunning(false);
+            return;
+        }
+
+        if (isGameComplete) {
+            return;
+        }
+
+        if (!autoHasStarted) {
+            setAutoHasStarted(true);
+
+            // Make the first automatic call immediately.
+            const nextCall = callNextNumber(calledNumbers);
+
+            if (nextCall !== null) {
+                setCalledNumbers(previous => [
+                    ...previous,
+                    nextCall
+                ]);
+
+                if (voiceEnabled) {
+                    announceBingoCall(nextCall);
+                }
+
+                if (calledNumbers.length === 74) {
+                    return;
+                }
+            }
+        }
+
+        setAutoRunning(true);
     }
 
     function handleNewGame() {
@@ -105,8 +258,26 @@ function App() {
             return;
         }
 
+        setAutoRunning(false);
+        setAutoHasStarted(false);
+        setCompletionPhase("idle");
+        stopBingoAnnouncement();
         setCalledNumbers([]);
     }
+
+    function handleToggleVoice() {
+        if (voiceEnabled) {
+            stopBingoAnnouncement();
+        }
+
+        setVoiceEnabled(!voiceEnabled);
+    }
+
+    const automaticButtonText = autoRunning
+        ? "Pause Auto"
+        : autoHasStarted
+            ? "Resume Auto"
+            : "Start Auto";
 
     return (
         <main className="bingo-app">
@@ -119,7 +290,11 @@ function App() {
                 <h2>Current Number</h2>
 
                 <div className="current-call-number">
-                    {currentCall ? currentCall.display : "READY!"}
+                    {completionPhase === "message"
+                        ? "GAME COMPLETE!"
+                        : currentCall
+                            ? currentCall.display
+                            : "READY!"}
                 </div>
 
                 <p>
@@ -133,7 +308,7 @@ function App() {
                 <button
                     type="button"
                     onClick={handleNextNumber}
-                    disabled={isGameComplete}
+                    disabled={isGameComplete || autoRunning}
                 >
                     Call Next Number
                 </button>
@@ -144,6 +319,46 @@ function App() {
                     onClick={handleNewGame}
                 >
                     New Game
+                </button>
+
+                <button
+                    type="button"
+                    className="voice-button"
+                    onClick={handleToggleVoice}
+                    disabled={!voiceSupported}
+                    aria-pressed={voiceEnabled}
+                >
+                    {voiceSupported
+                        ? `Voice: ${voiceEnabled ? "On" : "Off"}`
+                        : "Voice Unavailable"}
+                </button>
+
+                <label className="bingo-interval-label">
+                    Every
+                    <select
+                        value={intervalSeconds}
+                        onChange={event =>
+                            setIntervalSeconds(
+                                Number(event.target.value)
+                            )
+                        }
+                        aria-label="Automatic calling interval"
+                    >
+                        <option value={5}>5 sec</option>
+                        <option value={10}>10 sec</option>
+                        <option value={15}>15 sec</option>
+                        <option value={20}>20 sec</option>
+                    </select>
+                </label>
+
+                <button
+                    type="button"
+                    className="auto-button"
+                    onClick={handleAutomaticToggle}
+                    disabled={isGameComplete}
+                    aria-pressed={autoRunning}
+                >
+                    {automaticButtonText}
                 </button>
             </section>
 
