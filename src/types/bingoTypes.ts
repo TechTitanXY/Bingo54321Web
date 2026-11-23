@@ -5,3 +5,8 @@ export interface BingoCall {
     letter: BingoLetter;
     display: string;
 }
+
+export interface BingoCard {
+    id: string;
+    columns: Record<BingoLetter, (number | null)[]>;
+}

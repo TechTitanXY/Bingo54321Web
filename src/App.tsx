@@ -8,9 +8,9 @@ import {
     stopBingoAnnouncement
 } from "./services/bingoSpeechService";
 import "./styles/bingo.css";
+import PrintableCards from "./components/PrintableCards";
 
 const STORAGE_KEY = "54321-bingo-called-numbers";
-
 const VOICE_STORAGE_KEY = "54321-bingo-voice-enabled";
 
 function loadVoicePreference(): boolean {
@@ -88,6 +88,7 @@ function loadSavedNumbers(): BingoCall[] {
 function App() {
     const [calledNumbers, setCalledNumbers] =
         useState<BingoCall[]>(loadSavedNumbers);
+    const [showCardPrinter, setShowCardPrinter] = useState(false);
 
     const voiceSupported = isVoiceSupported();
 
@@ -128,7 +129,7 @@ function App() {
             : null;
 
     const isGameComplete = calledNumbers.length === 75;
-    
+
     useEffect(() => {
         if (completionPhase === "idle") {
             return;
@@ -240,6 +241,7 @@ function App() {
                 }
 
                 if (calledNumbers.length === 74) {
+                    setCompletionPhase("final-number");
                     return;
                 }
             }
@@ -273,98 +275,125 @@ function App() {
         setVoiceEnabled(!voiceEnabled);
     }
 
+    function handlePrintCards() {
+        if (calledNumbers.length !== 0 || autoRunning) {
+            return;
+        }
+
+        setShowCardPrinter(true);
+    }
+
     const automaticButtonText = autoRunning
         ? "Pause Auto"
         : autoHasStarted
             ? "Resume Auto"
             : "Start Auto";
 
+
     return (
         <main className="bingo-app">
-            <header className="bingo-header">
-                <h1>54321-BINGO!</h1>
-                <p>Turn Your TV Into a Bingo Hall!</p>
-            </header>
+            {showCardPrinter ? (
+                <PrintableCards
+                    onBack={() => setShowCardPrinter(false)}
+                />
+            ) : (
+                <>
+                    <header className="bingo-header">
+                        <h1>54321-BINGO!</h1>
+                        <p>Turn Your TV Into a Bingo Hall!</p>
 
-            <section className="current-call-panel">
-                <h2>Current Number</h2>
+                        {calledNumbers.length === 0 && (
+                            <button
+                                type="button"
+                                className="print-cards-button"
+                                onClick={handlePrintCards}
+                            >
+                                Print Bingo Cards
+                            </button>
+                        )}
+                    </header>
 
-                <div className="current-call-number">
-                    {completionPhase === "message"
-                        ? "GAME COMPLETE!"
-                        : currentCall
-                            ? currentCall.display
-                            : "READY!"}
-                </div>
+                    <section className="current-call-panel">
+                        <h2>Current Number</h2>
 
-                <p>
-                    {isGameComplete
-                        ? "All 75 numbers have been called!"
-                        : `${calledNumbers.length} of 75 numbers called`}
-                </p>
-            </section>
+                        <div className="current-call-number">
+                            {completionPhase === "message"
+                                ? "GAME COMPLETE!"
+                                : currentCall
+                                    ? currentCall.display
+                                    : "READY!"}
+                        </div>
 
-            <section className="bingo-controls">
-                <button
-                    type="button"
-                    onClick={handleNextNumber}
-                    disabled={isGameComplete || autoRunning}
-                >
-                    Call Next Number
-                </button>
+                        <p>
+                            {isGameComplete
+                                ? "All 75 numbers have been called!"
+                                : `${calledNumbers.length} of 75 numbers called`}
+                        </p>
+                    </section>
 
-                <button
-                    type="button"
-                    className="new-game-button"
-                    onClick={handleNewGame}
-                >
-                    New Game
-                </button>
+                    <section className="bingo-controls">
+                        <button
+                            type="button"
+                            onClick={handleNextNumber}
+                            disabled={isGameComplete || autoRunning}
+                        >
+                            Call Next Number
+                        </button>
 
-                <button
-                    type="button"
-                    className="voice-button"
-                    onClick={handleToggleVoice}
-                    disabled={!voiceSupported}
-                    aria-pressed={voiceEnabled}
-                >
-                    {voiceSupported
-                        ? `Voice: ${voiceEnabled ? "On" : "Off"}`
-                        : "Voice Unavailable"}
-                </button>
+                        <button
+                            type="button"
+                            className="new-game-button"
+                            onClick={handleNewGame}
+                        >
+                            New Game
+                        </button>
 
-                <label className="bingo-interval-label">
-                    Every
-                    <select
-                        value={intervalSeconds}
-                        onChange={event =>
-                            setIntervalSeconds(
-                                Number(event.target.value)
-                            )
-                        }
-                        aria-label="Automatic calling interval"
-                    >
-                        <option value={5}>5 sec</option>
-                        <option value={10}>10 sec</option>
-                        <option value={15}>15 sec</option>
-                        <option value={20}>20 sec</option>
-                    </select>
-                </label>
+                        <button
+                            type="button"
+                            className="voice-button"
+                            onClick={handleToggleVoice}
+                            disabled={!voiceSupported}
+                            aria-pressed={voiceEnabled}
+                        >
+                            {voiceSupported
+                                ? `Voice: ${voiceEnabled ? "On" : "Off"}`
+                                : "Voice Unavailable"}
+                        </button>
 
-                <button
-                    type="button"
-                    className="auto-button"
-                    onClick={handleAutomaticToggle}
-                    disabled={isGameComplete}
-                    aria-pressed={autoRunning}
-                >
-                    {automaticButtonText}
-                </button>
-            </section>
+                        <label className="bingo-interval-label">
+                            Every
+                            <select
+                                value={intervalSeconds}
+                                onChange={event =>
+                                    setIntervalSeconds(
+                                        Number(event.target.value)
+                                    )
+                                }
+                                aria-label="Automatic calling interval"
+                            >
+                                <option value={5}>5 sec</option>
+                                <option value={10}>10 sec</option>
+                                <option value={15}>15 sec</option>
+                                <option value={20}>20 sec</option>
+                            </select>
+                        </label>
 
-            <section aria-label="Bingo number board">
-                <BingoBoard calledNumbers={calledNumbers} />
-            </section>
+                        <button
+                            type="button"
+                            className="auto-button"
+                            onClick={handleAutomaticToggle}
+                            disabled={isGameComplete}
+                            aria-pressed={autoRunning}
+                        >
+                            {automaticButtonText}
+                        </button>
+                    </section>
+
+                    <section aria-label="Bingo number board">
+                        <BingoBoard calledNumbers={calledNumbers} />
+                    </section>
+                </>
+            )}
         </main>
     );
 }
