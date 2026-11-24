@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { generateBingoCards } from "../services/bingoCardService";
+import { saveBingoCards } from "../services/bingoCardStorage";
 import type {
     BingoCard,
     BingoLetter
@@ -60,6 +61,9 @@ export default function PrintableCards({
 }: PrintableCardsProps) {
     const [cardCount, setCardCount] = useState(10);
     const [cards, setCards] = useState<BingoCard[]>([]);
+    const [isSaving, setIsSaving] = useState(false);
+    const [storageMessage, setStorageMessage] = useState("");
+    const [storageError, setStorageError] = useState("");
 
     const pages: BingoCard[][] = [];
 
@@ -67,8 +71,31 @@ export default function PrintableCards({
         pages.push(cards.slice(i, i + 2));
     }
 
-    function handleGenerate() {
-        setCards(generateBingoCards(cardCount));
+    async function handleGenerate() {
+        if (isSaving) {
+            return;
+        }
+
+        setIsSaving(true);
+        setStorageMessage("");
+        setStorageError("");
+
+        try {
+            const generatedCards = generateBingoCards(cardCount);
+            await saveBingoCards(generatedCards);
+            setCards(generatedCards);
+            setStorageMessage(
+                `${generatedCards.length} new cards saved to this browser's card library.`
+            );
+        } catch (error) {
+            setStorageError(
+                error instanceof Error
+                    ? `Cards could not be saved: ${error.message}`
+                    : "Cards could not be saved. Check your browser storage settings."
+            );
+        } finally {
+            setIsSaving(false);
+        }
     }
 
     return (
@@ -107,15 +134,16 @@ export default function PrintableCards({
 
                     <button
                         type="button"
-                        onClick={handleGenerate}
+                        onClick={() => void handleGenerate()}
+                        disabled={isSaving}
                     >
-                        Generate Cards
+                        {isSaving ? "Saving Cards..." : "Generate Cards"}
                     </button>
 
                     <button
                         type="button"
                         onClick={() => window.print()}
-                        disabled={cards.length === 0}
+                        disabled={cards.length === 0 || isSaving}
                     >
                         Print Cards
                     </button>
@@ -123,11 +151,24 @@ export default function PrintableCards({
                     <button
                         type="button"
                         onClick={onBack}
+                        disabled={isSaving}
                         className="print-back-button"
                     >
                         Back to Game
                     </button>
                 </div>
+
+                {storageMessage && (
+                    <p role="status" className="print-card-count">
+                        {storageMessage}
+                    </p>
+                )}
+
+                {storageError && (
+                    <p role="alert" style={{ color: "#b91c1c", fontWeight: 600 }}>
+                        {storageError}
+                    </p>
+                )}
 
                 {cards.length > 0 && (
                     <p className="print-card-count">
