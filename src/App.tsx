@@ -9,9 +9,22 @@ import {
 } from "./services/bingoSpeechService";
 import "./styles/bingo.css";
 import PrintableCards from "./components/PrintableCards";
+import ActiveCards from "./components/ActiveCards";
 
 const STORAGE_KEY = "54321-bingo-called-numbers";
 const VOICE_STORAGE_KEY = "54321-bingo-voice-enabled";
+const ACTIVE_CARDS_STORAGE_KEY = "54321-bingo-active-card-ids";
+
+function loadActiveCardIds(): string[] {
+    try {
+        const value: unknown = JSON.parse(localStorage.getItem(ACTIVE_CARDS_STORAGE_KEY) ?? "[]");
+        return Array.isArray(value) ? [...new Set(value.filter(
+            (id): id is string => typeof id === "string" && /^[A-Z](?:00[1-9]|0[1-9]\d|[1-9]\d{2})$/.test(id)
+        ))] : [];
+    } catch {
+        return [];
+    }
+}
 
 function loadVoicePreference(): boolean {
     const supported = isVoiceSupported();
@@ -89,6 +102,16 @@ function App() {
     const [calledNumbers, setCalledNumbers] =
         useState<BingoCall[]>(loadSavedNumbers);
     const [showCardPrinter, setShowCardPrinter] = useState(false);
+    const [showActiveCards, setShowActiveCards] = useState(false);
+    const [activeCardIds, setActiveCardIds] = useState<string[]>(loadActiveCardIds);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(ACTIVE_CARDS_STORAGE_KEY, JSON.stringify(activeCardIds));
+        } catch {
+            // Keep registration active in memory when session storage is unavailable.
+        }
+    }, [activeCardIds]);
 
     const voiceSupported = isVoiceSupported();
 
@@ -292,7 +315,13 @@ function App() {
 
     return (
         <main className="bingo-app">
-            {showCardPrinter ? (
+            {showActiveCards ? (
+                <ActiveCards
+                    activeIds={activeCardIds}
+                    onSave={setActiveCardIds}
+                    onBack={() => setShowActiveCards(false)}
+                />
+            ) : showCardPrinter ? (
                 <PrintableCards
                     onBack={() => setShowCardPrinter(false)}
                 />
@@ -303,6 +332,7 @@ function App() {
                         <p>Turn Your TV Into a Bingo Hall!</p>
 
                         {calledNumbers.length === 0 && (
+                            <div className="bingo-header-actions">
                             <button
                                 type="button"
                                 className="print-cards-button"
@@ -310,9 +340,18 @@ function App() {
                             >
                                 Print Bingo Cards
                             </button>
+                            <button type="button" className="register-cards-button"
+                                onClick={() => setShowActiveCards(true)}>
+                                Register Active Cards
+                            </button>
+                            </div>
                         )}
                     </header>
 
+                    <p className="bingo-active-status" role="status">
+                        Active cards registered: <strong>{activeCardIds.length}</strong>
+                        {calledNumbers.length > 0 ? " (registration locked during this game)" : ""}
+                    </p>
                     <section className="current-call-panel">
                         <h2>Current Number</h2>
 

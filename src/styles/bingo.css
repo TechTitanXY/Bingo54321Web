@@ -495,3 +495,56 @@
     .bingo-library-actions,
     .bingo-library-list { display: none !important; }
 }
+
+/* Phase 3: active card registration. Register only while the caller is READY. */
+.bingo-header .bingo-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 14px;
+}
+.bingo-header-actions .print-cards-button {
+    position: static;
+    transform: none;
+    margin: 0;
+}
+.register-cards-button,
+.bingo-active-actions button {
+    padding: 10px 14px;
+    border: 0;
+    border-radius: 7px;
+    background: #173d75;
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.register-cards-button:hover,
+.bingo-active-actions button:hover:not(:disabled) { background: #285394; }
+.bingo-active-actions button:disabled { background: #94a3b8; cursor: not-allowed; }
+.bingo-active-view { text-align: center; }
+.bingo-active-view h2 { color: #173d75; }
+.bingo-active-count, .bingo-active-status { text-align: center; color: #173d75; }
+.bingo-active-status { margin: 0 0 12px; }
+.bingo-active-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: 12px 0;
+}
+.bingo-active-actions input {
+    padding: 10px;
+    border: 1px solid #94a3b8;
+    border-radius: 6px;
+    width: 190px;
+    max-width: 100%;
+}
+.bingo-active-actions input.bingo-active-range { width: 80px; text-transform: uppercase; }
+.bingo-active-actions .bingo-active-save { background: #15803d; }
+@media print {
+    .bingo-active-status, .bingo-header-actions, .bingo-active-view { display: none !important; }
+}
