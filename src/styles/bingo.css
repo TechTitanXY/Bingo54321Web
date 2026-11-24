@@ -426,3 +426,72 @@
         -webkit-print-color-adjust: exact;
     }
 }
+/* Phase 2: saved card library */
+.bingo-library-navigation,
+.bingo-library-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: 12px 0;
+}
+.bingo-library-navigation button,
+.bingo-library-actions button,
+.bingo-library-card-row button {
+    padding: 10px 14px;
+    border: 0;
+    border-radius: 7px;
+    background: #173d75;
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.bingo-library-navigation .print-back-button { background: #475569; }
+.bingo-library-navigation button:disabled,
+.bingo-library-actions button:disabled { background: #94a3b8; cursor: not-allowed; }
+.bingo-library-actions input[type="search"] {
+    padding: 10px;
+    border: 1px solid #94a3b8;
+    border-radius: 6px;
+    width: 190px;
+    max-width: 100%;
+}
+.bingo-library-list {
+    width: min(100%, 800px);
+    margin: 16px auto 20px;
+    max-height: 440px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+}
+.bingo-library-list > p { padding: 16px; }
+.bingo-library-card-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-bottom: 1px solid #e2e8f0;
+}
+.bingo-library-card-row:last-child { border-bottom: 0; }
+.bingo-library-card-row label {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+.bingo-library-card-row input[type="checkbox"] { width: 18px; height: 18px; }
+.bingo-library-card-id { font-weight: 700; font-family: monospace; }
+.bingo-library-date { color: #475569; font-size: 0.9rem; }
+.bingo-storage-error { color: #b91c1c; font-weight: 600; }
+@media (max-width: 600px) {
+    .bingo-library-card-row { flex-wrap: wrap; }
+}
+@media print {
+    .bingo-library-navigation,
+    .bingo-library-actions,
+    .bingo-library-list { display: none !important; }
+}

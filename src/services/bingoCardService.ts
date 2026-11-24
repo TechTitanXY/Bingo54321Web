@@ -42,6 +42,7 @@ function createCardId(): string {
         value => value.toString(16).padStart(8, "0")
     ).join("");
 
+    // Temporary generation identifier; storage assigns the permanent A001–Z999 ID.
     return identifier.slice(0, 10).toUpperCase();
 }
 
