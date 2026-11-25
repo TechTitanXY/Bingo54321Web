@@ -1,0 +1,136 @@
+54321-BINGO!
+PHASE 4 — WINNER DETECTION AND CELEBRATION
+Completion Notes
+November 25, 2026
+
+==================================================
+OVERVIEW
+==================================================
+
+Phase 4 introduced automatic Bingo winner detection, a Winners panel, audible winner celebrations, visual highlighting, and automatic game-completion handling.
+
+The implementation was tested using permanent saved Bingo cards A001 through A004.
+
+==================================================
+FEATURES IMPLEMENTED
+==================================================
+
+1. Automatic Winner Detection
+   - Evaluates all 12 standard Bingo winning lines:
+     - 5 horizontal rows
+     - 5 vertical columns
+     - 2 diagonals
+   - Treats the center FREE square as automatically marked.
+   - Evaluates only registered cards.
+   - Recognizes multiple winners on the same called number.
+   - Records each winning Card ID only once.
+   - Preserves the winning number and order of winners.
+
+2. Winners Panel
+   - Displays winning Card IDs and their winning calls.
+   - Retains earlier winners throughout the game.
+   - Highlights newly detected winners.
+   - Supports simultaneous winners.
+
+3. Audible Celebration
+   - Uses synthesized bell sounds without external audio files.
+   - Updated to five louder dings over approximately three seconds.
+   - Includes a Bell On/Off control.
+   - Bell celebration ends automatically.
+
+4. Visual Celebration
+   - Newly winning cards alternate between White and Gold backgrounds.
+   - Dark lettering remains readable throughout the animation.
+   - Highlighting continues until calling resumes.
+   - Earlier winners remain visible without flashing.
+   - Supports reduced-motion accessibility preferences.
+
+5. Automatic Calling
+   - Pauses whenever a new winner is detected.
+   - Supports manual continuation and Resume Auto.
+   - Prevents repeated announcements for previous winners.
+
+6. Game Completion
+   - Detects when all registered cards have won.
+   - Disables Resume Auto and Call Next Number.
+   - Preserves the final winner's flashing highlight.
+   - Provides a game-completion message.
+   - New Game is designed to reset called numbers and winners while retaining registrations.
+
+7. The electronic bell was replaced with your original five-ding MP3 recording.
+   - The application successfully played the five-ding MP3 recording.
+
+8. Production Build and ESLint
+   - Phase 4 was successfully built for production.
+   - ESLint completed without errors or warnings.
+
+==================================================
+FUNCTIONAL TEST RESULTS
+==================================================
+
+PASS — Five-ding volume, timing, and single-sequence behavior for simultaneous winners.
+
+PASS — Horizontal winner detection.
+
+PASS — Vertical winner detection.
+
+PASS — Center horizontal winning lines involving FREE.
+
+PASS — Center vertical winning lines involving FREE.
+
+PASS — Diagonal winner detection involving FREE.
+
+PASS — Unregistered card completing a Bingo was correctly ignored.
+
+PASS — Previously winning cards completing additional lines were not announced again.
+
+PASS — Two simultaneous winners, A001 and A004, were detected on O-68.
+
+PASS — All four registered cards were detected as winners in one game:
+    A002 — B-4
+    A001 — O-68
+    A004 — O-68
+    A003 — B-14
+
+PASS — Final winner remained highlighted after all registered cards won.
+
+PASS — Resume Auto was disabled after the final winner.
+
+PASS — Call Next Number was disabled after the final winner.
+
+PASS — Production build and ESLint completed successfully.
+
+==================================================
+ADDITIONAL VERIFICATION
+==================================================
+
+The following refinements were implemented but were not all separately confirmed in the recorded test results:
+
+- Bell On/Off behavior.
+- New Game during an active bell celebration.
+- Game-completion message visibility.
+- New Game reset and registration retention after final-winner completion.
+- Reduced-motion behavior.
+- Mobile layout after the celebration changes.
+
+==================================================
+FUTURE ENHANCEMENTS
+==================================================
+
+- Optional maximum number of winners per game.
+- Possible prerecorded number announcements.
+- Additional usability and presentation refinements.
+
+==================================================
+CONCLUSION
+==================================================
+
+Phase 4's core winner-detection and game-completion functionality has been successfully implemented and verified through real-game testing.
+
+The tests confirmed correct handling of registered cards, FREE-square winning patterns, simultaneous winners, duplicate suppression, and final-winner calling lockout.
+
+The celebration refinements are implemented, with a few optional verification checks remaining before final acceptance.
+
+==================================================
+END OF PHASE 4 NOTES
+==================================================

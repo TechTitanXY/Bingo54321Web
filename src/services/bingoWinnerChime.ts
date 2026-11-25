@@ -1,66 +1,58 @@
-// Five clear bell strikes over about three seconds, generated with Web Audio.
-// Calling and winner detection remain available if audio is unavailable.
-let audioContext: AudioContext | null = null;
-const activeStrikes = new Set<OscillatorNode>();
+const BELL_AUDIO_URL =
+    `${import.meta.env.BASE_URL}audio/Winner_Dings_for_54321-Bingo.mp3`;
+
+let winnerAudio: HTMLAudioElement | null = null;
+
+function getWinnerAudio(): HTMLAudioElement | null {
+    if (typeof window === "undefined") {
+        return null;
+    }
+
+    if (!winnerAudio) {
+        winnerAudio = new Audio(BELL_AUDIO_URL);
+        winnerAudio.preload = "auto";
+        winnerAudio.volume = 1.0;
+    }
+
+    return winnerAudio;
+}
 
 export function unlockWinnerChime(): void {
     try {
-        if (typeof window === "undefined") return;
-        const Context = window.AudioContext;
-        if (!Context) return;
-        audioContext ??= new Context();
-        if (audioContext.state === "suspended") {
-            void audioContext.resume().catch(() => { /* Audio is optional. */ });
-        }
+        const audio = getWinnerAudio();
+        audio?.load();
     } catch {
-        // Do not prevent gameplay when audio is unavailable.
+        // Audio is optional and must not interfere with gameplay.
     }
 }
 
 export function stopWinnerChime(): void {
-    for (const oscillator of activeStrikes) {
-        try {
-            oscillator.stop();
-        } catch {
-            // A strike may already have finished.
+    try {
+        if (!winnerAudio) {
+            return;
         }
+
+        winnerAudio.pause();
+        winnerAudio.currentTime = 0;
+    } catch {
+        // Stopping the bell must not interfere with gameplay.
     }
-    activeStrikes.clear();
 }
 
 export function playWinnerChime(): void {
     try {
-        if (!audioContext || audioContext.state !== "running") return;
-        stopWinnerChime();
-        const context = audioContext;
-        const now = context.currentTime;
+        const audio = getWinnerAudio();
 
-        // Five evenly spaced strikes, with a short tail on the fifth.
-        for (let index = 0; index < 5; index++) {
-            const start = now + index * 0.55;
-            const end = start + 0.53;
-            const oscillator = context.createOscillator();
-            const gain = context.createGain();
-
-            oscillator.type = "sine";
-            oscillator.frequency.setValueAtTime(880, start);
-            oscillator.frequency.exponentialRampToValueAtTime(660, end);
-            gain.gain.setValueAtTime(0.0001, start);
-            gain.gain.exponentialRampToValueAtTime(0.28, start + 0.012);
-            gain.gain.exponentialRampToValueAtTime(0.0001, end);
-
-            oscillator.connect(gain);
-            gain.connect(context.destination);
-            activeStrikes.add(oscillator);
-            oscillator.onended = () => {
-                activeStrikes.delete(oscillator);
-                oscillator.disconnect();
-                gain.disconnect();
-            };
-            oscillator.start(start);
-            oscillator.stop(end);
+        if (!audio) {
+            return;
         }
+
+        stopWinnerChime();
+
+        void audio.play().catch(() => {
+            // Browser audio restrictions must not interrupt gameplay.
+        });
     } catch {
-        // A failed chime must not interfere with winner detection.
+        // Winner detection continues even if audio playback fails.
     }
 }

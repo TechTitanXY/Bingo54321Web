@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="Phase4_WinnerDetection_CompletionNotes.txt" />
+  </Folder>
   <Project Path="bingo54321web.esproj">
     <Build />
     <Deploy />
