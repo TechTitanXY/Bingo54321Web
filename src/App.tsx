@@ -1,7 +1,12 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import BingoBoard from "./components/BingoBoard";
 import { callNextNumber } from "./services/bingoService";
 import type { BingoCall } from "./types/bingoTypes";
+import type { SavedBingoCard } from "./services/bingoCardStorage";
+import { getSavedBingoCards } from "./services/bingoCardStorage";
+import { findBingoWinners } from "./services/bingoWinnerService";
+import BingoWinners from "./components/BingoWinners";
+import { playWinnerChime, stopWinnerChime, unlockWinnerChime } from "./services/bingoWinnerChime";
 import {
     announceBingoCall,
     isVoiceSupported,
@@ -14,6 +19,7 @@ import ActiveCards from "./components/ActiveCards";
 const STORAGE_KEY = "54321-bingo-called-numbers";
 const VOICE_STORAGE_KEY = "54321-bingo-voice-enabled";
 const ACTIVE_CARDS_STORAGE_KEY = "54321-bingo-active-card-ids";
+const WINNER_BELL_KEY = "54321-bingo-winner-bell-enabled";
 
 function loadActiveCardIds(): string[] {
     try {
@@ -23,6 +29,14 @@ function loadActiveCardIds(): string[] {
         ))] : [];
     } catch {
         return [];
+    }
+}
+
+function loadWinnerBellPreference(): boolean {
+    try {
+        return localStorage.getItem(WINNER_BELL_KEY) !== "false";
+    } catch {
+        return true;
     }
 }
 
@@ -104,12 +118,86 @@ function App() {
     const [showCardPrinter, setShowCardPrinter] = useState(false);
     const [showActiveCards, setShowActiveCards] = useState(false);
     const [activeCardIds, setActiveCardIds] = useState<string[]>(loadActiveCardIds);
+    const [cardLibrary, setCardLibrary] = useState<SavedBingoCard[]>([]);
+    const [libraryLoading, setLibraryLoading] = useState(true);
+    const [libraryError, setLibraryError] = useState("");
+    const [winnerNotice, setWinnerNotice] = useState("");
+    const [celebratingIds, setCelebratingIds] = useState<string[]>([]);
+    const [winnerBellEnabled, setWinnerBellEnabled] = useState(loadWinnerBellPreference);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(WINNER_BELL_KEY, String(winnerBellEnabled));
+        } catch {
+            // A bell preference can still work for the current page without storage.
+        }
+    }, [winnerBellEnabled]);
+
+    const reloadCardLibrary = useCallback(async () => {
+        try {
+            const saved = await getSavedBingoCards();
+
+            setCardLibrary(saved);
+            setLibraryError("");
+        } catch (error) {
+            setLibraryError(
+                error instanceof Error
+                    ? error.message
+                    : "Could not load saved Bingo cards."
+            );
+        } finally {
+            setLibraryLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        let canceled = false;
+
+        getSavedBingoCards()
+            .then(saved => {
+                if (canceled) return;
+
+                setCardLibrary(saved);
+                setLibraryError("");
+            })
+            .catch(error => {
+                if (canceled) return;
+
+                setLibraryError(
+                    error instanceof Error
+                        ? error.message
+                        : "Could not load saved Bingo cards."
+                );
+            })
+            .finally(() => {
+                if (!canceled) {
+                    setLibraryLoading(false);
+                }
+            });
+
+        return () => {
+            canceled = true;
+        };
+    }, []);
+
+    const registeredCards = useMemo(() => {
+        const active = new Set(activeCardIds);
+        return cardLibrary.filter(card => active.has(card.id));
+    }, [activeCardIds, cardLibrary]);
+    const missingRegistration = registeredCards.length !== activeCardIds.length;
+    // Don't call when a registration cannot be checked: it could hide a legitimate winner.
+    const cardsUnavailable = activeCardIds.length > 0 &&
+        (libraryLoading || Boolean(libraryError) || missingRegistration);
+    const winners = useMemo(
+        () => findBingoWinners(registeredCards, calledNumbers),
+        [registeredCards, calledNumbers]
+    );
 
     useEffect(() => {
         try {
             localStorage.setItem(ACTIVE_CARDS_STORAGE_KEY, JSON.stringify(activeCardIds));
         } catch {
-            // Keep registration active in memory when session storage is unavailable.
+            // Keep registration active in memory when local storage is unavailable.
         }
     }, [activeCardIds]);
 
@@ -151,7 +239,11 @@ function App() {
             ? calledNumbers[calledNumbers.length - 1]
             : null;
 
-    const isGameComplete = calledNumbers.length === 75;
+    // A game also ends when every registered card has already won.
+    // Keep registrations intact so New Game can use the same cards again.
+    const allRegisteredCardsWon = activeCardIds.length > 0 &&
+        !cardsUnavailable && winners.length === registeredCards.length;
+    const isGameComplete = calledNumbers.length === 75 || allRegisteredCardsWon;
 
     useEffect(() => {
         if (completionPhase === "idle") {
@@ -172,10 +264,36 @@ function App() {
     }, [completionPhase]);
 
 
+    // Check for newly completed lines synchronously with every manual/auto call.
+    // The automatic timer is canceled immediately when any new card wins.
+    const applyCall = useCallback((nextCall: BingoCall): boolean => {
+        const existingWinners = new Set(
+            findBingoWinners(registeredCards, calledNumbers).map(winner => winner.cardId)
+        );
+        const newlyWinning = findBingoWinners(registeredCards, [...calledNumbers, nextCall])
+            .filter(winner => !existingWinners.has(winner.cardId));
+
+        setCalledNumbers(previous => [...previous, nextCall]);
+        if (voiceEnabled) announceBingoCall(nextCall);
+
+        if (calledNumbers.length === 74) {
+            setCompletionPhase("final-number");
+            setAutoRunning(false);
+        }
+        if (newlyWinning.length > 0) {
+            setCelebratingIds(newlyWinning.map(winner => winner.cardId));
+            if (winnerBellEnabled) playWinnerChime();
+            setWinnerNotice(`BINGO! ${newlyWinning.map(winner => winner.cardId).join(", ")}`);
+            setAutoRunning(false);
+            return true;
+        }
+        return false;
+    }, [registeredCards, calledNumbers, voiceEnabled, winnerBellEnabled]);
+
     // Schedule one automatic call at a time.
     // A change to the game or interval resets the timer.
     useEffect(() => {
-        if (!autoRunning || isGameComplete) {
+        if (!autoRunning || isGameComplete || cardsUnavailable) {
             return;
         }
 
@@ -187,20 +305,7 @@ function App() {
                 return;
             }
 
-            setCalledNumbers(previous => [
-                ...previous,
-                nextCall
-            ]);
-
-            if (voiceEnabled) {
-                announceBingoCall(nextCall);
-            }
-
-            if (calledNumbers.length === 74) {
-                setCompletionPhase("final-number");
-                setAutoRunning(false);
-            }
-
+            applyCall(nextCall);
         }, intervalSeconds * 1000);
 
         return () => {
@@ -210,31 +315,23 @@ function App() {
         autoRunning,
         calledNumbers,
         intervalSeconds,
-        voiceEnabled,
-        isGameComplete
+        isGameComplete,
+        cardsUnavailable,
+        applyCall
     ]);
 
     function handleNextNumber() {
-        if (autoRunning || isGameComplete) {
+        if (autoRunning || isGameComplete || cardsUnavailable) {
             return;
         }
 
+        unlockWinnerChime();
+        stopWinnerChime();
+        setCelebratingIds([]);
+        setWinnerNotice("");
         const nextCall = callNextNumber(calledNumbers);
 
-        if (nextCall !== null) {
-            setCalledNumbers(previous => [
-                ...previous,
-                nextCall
-            ]);
-
-            if (voiceEnabled) {
-                announceBingoCall(nextCall);
-            }
-
-            if (calledNumbers.length === 74) {
-                setCompletionPhase("final-number");
-            }
-        }
+        if (nextCall !== null) applyCall(nextCall);
     }
 
     function handleAutomaticToggle() {
@@ -243,10 +340,14 @@ function App() {
             return;
         }
 
-        if (isGameComplete) {
+        if (isGameComplete || cardsUnavailable) {
             return;
         }
 
+        unlockWinnerChime();
+        stopWinnerChime();
+        setCelebratingIds([]);
+        setWinnerNotice("");
         if (!autoHasStarted) {
             setAutoHasStarted(true);
 
@@ -254,19 +355,8 @@ function App() {
             const nextCall = callNextNumber(calledNumbers);
 
             if (nextCall !== null) {
-                setCalledNumbers(previous => [
-                    ...previous,
-                    nextCall
-                ]);
-
-                if (voiceEnabled) {
-                    announceBingoCall(nextCall);
-                }
-
-                if (calledNumbers.length === 74) {
-                    setCompletionPhase("final-number");
-                    return;
-                }
+                const won = applyCall(nextCall);
+                if (won || calledNumbers.length === 74) return;
             }
         }
 
@@ -287,7 +377,10 @@ function App() {
         setAutoHasStarted(false);
         setCompletionPhase("idle");
         stopBingoAnnouncement();
+        stopWinnerChime();
         setCalledNumbers([]);
+        setWinnerNotice("");
+        setCelebratingIds([]);
     }
 
     function handleToggleVoice() {
@@ -318,7 +411,10 @@ function App() {
             {showActiveCards ? (
                 <ActiveCards
                     activeIds={activeCardIds}
-                    onSave={setActiveCardIds}
+                    onSave={ids => {
+                        setActiveCardIds(ids);
+                        void reloadCardLibrary();
+                    }}
                     onBack={() => setShowActiveCards(false)}
                 />
             ) : showCardPrinter ? (
@@ -364,17 +460,33 @@ function App() {
                         </div>
 
                         <p>
-                            {isGameComplete
+                            {calledNumbers.length === 75
                                 ? "All 75 numbers have been called!"
                                 : `${calledNumbers.length} of 75 numbers called`}
                         </p>
                     </section>
 
+                    {libraryError && activeCardIds.length > 0 && (
+                        <p className="bingo-storage-error" role="alert">Winner detection unavailable: {libraryError}</p>
+                    )}
+                    {!libraryLoading && !libraryError && missingRegistration && (
+                        <p className="bingo-storage-error" role="alert">
+                            Some registered cards are missing from this browser's library. Restore them before calling numbers.
+                        </p>
+                    )}
+                    {winnerNotice && calledNumbers.length > 0 && (
+                        <p className="bingo-winner-notice" role="status">{winnerNotice}</p>
+                    )}
+                    {allRegisteredCardsWon && (
+                        <p className="bingo-game-complete-notice" role="status">
+                            All registered cards have won! Game complete.
+                        </p>
+                    )}
                     <section className="bingo-controls">
                         <button
                             type="button"
                             onClick={handleNextNumber}
-                            disabled={isGameComplete || autoRunning}
+                            disabled={isGameComplete || autoRunning || cardsUnavailable}
                         >
                             Call Next Number
                         </button>
@@ -385,6 +497,19 @@ function App() {
                             onClick={handleNewGame}
                         >
                             New Game
+                        </button>
+
+                        <button
+                            type="button"
+                            className="bingo-bell-button"
+                            onClick={() => {
+                                unlockWinnerChime();
+                                if (winnerBellEnabled) stopWinnerChime();
+                                setWinnerBellEnabled(enabled => !enabled);
+                            }}
+                            aria-pressed={winnerBellEnabled}
+                        >
+                            Bell: {winnerBellEnabled ? "On" : "Off"}
                         </button>
 
                         <button
@@ -421,15 +546,22 @@ function App() {
                             type="button"
                             className="auto-button"
                             onClick={handleAutomaticToggle}
-                            disabled={isGameComplete}
+                            disabled={isGameComplete || cardsUnavailable}
                             aria-pressed={autoRunning}
                         >
                             {automaticButtonText}
                         </button>
                     </section>
 
-                    <section aria-label="Bingo number board">
-                        <BingoBoard calledNumbers={calledNumbers} />
+                    <section className="bingo-game-layout" aria-label="Bingo board and winners">
+                        <div className="bingo-board-container">
+                            <BingoBoard calledNumbers={calledNumbers} />
+                        </div>
+                        <BingoWinners
+                            winners={winners}
+                            celebratingIds={celebratingIds}
+                            registeredCount={activeCardIds.length}
+                        />
                     </section>
                 </>
             )}
