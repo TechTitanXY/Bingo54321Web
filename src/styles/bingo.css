@@ -1142,3 +1142,88 @@
     .bingo-game-screen .bingo-controls button { font-size: 0.82rem; }
     .bingo-game-screen .bingo-interval-label { font-size: 0.8rem; }
 }
+
+/* Phase 6: familiar PHA navigation, game-safe links, and instructional guide. */
+.bingo-app { position: relative; }
+.bingo-site-nav {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 2;
+}
+.bingo-site-nav a {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    color: #173d75;
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none;
+}
+.bingo-site-nav img { display: block; width: 44px; height: 44px; object-fit: contain; }
+.bingo-site-nav a:hover { text-decoration: underline; }
+.bingo-site-nav a:focus-visible,
+.bingo-info-footer a:focus-visible,
+.bingo-info-footer button:focus-visible,
+.bingo-about-contents a:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }
+.bingo-game-header-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.bingo-options-actions .bingo-help-button,
+.bingo-about-back {
+    background: #173d75;
+    color: white;
+    border: 0;
+    border-radius: 7px;
+    cursor: pointer;
+    font-weight: 700;
+    padding: 12px 20px;
+    min-height: 48px;
+    font-size: 18px;
+}
+.bingo-options-actions .bingo-help-button:hover,
+.bingo-about-back:hover { background: #285394; }
+.bingo-info-footer {
+    margin: 28px auto 0;
+    padding: 16px 12px 4px;
+    border-top: 1px solid #cbd5e1;
+    color: #173d75;
+    text-align: center;
+    font-size: 16px;
+}
+.bingo-info-footer nav { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px; }
+.bingo-info-footer a, .bingo-info-footer button {
+    border: 0;
+    padding: 2px;
+    color: #1d4ed8;
+    background: transparent;
+    text-decoration: none;
+    font: inherit;
+    cursor: pointer;
+}
+.bingo-info-footer a:hover, .bingo-info-footer button:hover { text-decoration: underline; }
+.bingo-about-view { max-width: 900px; margin: 0 auto; padding: 22px 18px 60px; font-size: 18px; line-height: 1.6; color: #1e293b; }
+.bingo-about-view > header { text-align: center; }
+.bingo-about-view h1 { font-size: clamp(30px, 4vw, 38px); color: #173d75; margin: 10px 0 0; }
+.bingo-about-tagline { font-weight: 700; color: #173d75; margin: 0 0 16px; }
+.bingo-about-view h2 { color: #173d75; font-size: 25px; line-height: 1.25; margin: 0 0 12px; }
+.bingo-about-view h3 { color: #173d75; font-size: 20px; margin: 16px 0 6px; }
+.bingo-about-view p { margin: 10px 0; }
+.bingo-about-view > section { padding: 18px 24px; border: 1px solid #cbd5e1; background: white; border-radius: 10px; margin: 16px 0; scroll-margin-top: 20px; }
+.bingo-about-contents { padding: 18px 24px; display: flex; flex-wrap: wrap; gap: 10px 18px; background: #dfeefb; border-radius: 10px; margin: 22px 0; }
+.bingo-about-contents strong { width: 100%; color: #173d75; }
+.bingo-about-contents a { color: #1d4ed8; }
+.bingo-about-copyright { text-align: center; font-weight: 700; }
+.bingo-about-back { display: block; margin: 18px auto; }
+@media screen and (max-width: 680px) {
+    .bingo-site-nav { top: 4px; left: 4px; }
+    .bingo-site-nav img { width: 32px; height: 32px; }
+    .bingo-site-nav span { display: none; }
+    .bingo-about-view { padding: 10px 0 30px; font-size: 16px; }
+    .bingo-about-view > section { padding: 16px; }
+    .bingo-about-view h2 { font-size: 22px; }
+    .bingo-game-header-actions { gap: 6px; }
+    .bingo-game-header-actions .bingo-options-button { padding: 7px 10px; font-size: 0.9rem; }
+}
+@media print {
+    .bingo-site-nav, .bingo-info-footer, .bingo-about-view, .bingo-game-header-actions { display: none !important; }
+}

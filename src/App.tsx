@@ -15,6 +15,7 @@ import {
 import "./styles/bingo.css";
 import PrintableCards from "./components/PrintableCards";
 import ActiveCards from "./components/ActiveCards";
+import AboutBingo from "./components/AboutBingo";
 
 const STORAGE_KEY = "54321-bingo-called-numbers";
 const VOICE_STORAGE_KEY = "54321-bingo-voice-enabled";
@@ -138,12 +139,57 @@ function loadSavedNumbers(): BingoCall[] {
     }
 }
 
+// Browser history tracks Bingo screens without changing the hosting path.
+// Keeping routing in the hash also works when Vite is hosted in a subdirectory.
+type BingoPage =
+    | "game" | "options" | "about-game" | "about-options"
+    | "cards-generate" | "cards-saved" | "cards-preview" | "register";
+
+type BingoHistoryEntry = {
+    bingo54321: true;
+    page: BingoPage;
+    trail: BingoPage[];
+};
+
+const ROUTE_HASH: Record<BingoPage, string> = {
+    game: "", options: "options", "about-game": "how-to-play",
+    "about-options": "options/how-to-play", "cards-generate": "options/cards",
+    "cards-saved": "options/cards/saved", "cards-preview": "options/cards/preview",
+    register: "options/register"
+};
+
+function isBingoPage(value: unknown): value is BingoPage {
+    return typeof value === "string" && Object.hasOwn(ROUTE_HASH, value);
+}
+
+function currentBingoHistory(): BingoHistoryEntry | null {
+    const value: unknown = window.history.state;
+    if (!value || typeof value !== "object" || !("bingo54321" in value) ||
+        value.bingo54321 !== true || !("page" in value) ||
+        !isBingoPage(value.page) || !("trail" in value) ||
+        !Array.isArray(value.trail) || value.trail.length === 0 || !value.trail.every(isBingoPage)) {
+        return null;
+    }
+    return value as BingoHistoryEntry;
+}
+
+function pageFromLocation(): BingoPage {
+    const hash = decodeURIComponent(window.location.hash.slice(1));
+    return (Object.keys(ROUTE_HASH) as BingoPage[])
+        .find(page => ROUTE_HASH[page] === hash) ?? "game";
+}
+
+function pageUrl(page: BingoPage): string {
+    const { pathname, search } = window.location;
+    return `${pathname}${search}${ROUTE_HASH[page] ? `#${ROUTE_HASH[page]}` : ""}`;
+}
+
 function App() {
     const [calledNumbers, setCalledNumbers] =
         useState<BingoCall[]>(loadSavedNumbers);
-    const [showOptions, setShowOptions] = useState(false);
-    const [showCardPrinter, setShowCardPrinter] = useState(false);
-    const [showActiveCards, setShowActiveCards] = useState(false);
+    const [page, setPage] = useState<BingoPage>(pageFromLocation);
+    const isCardPage = page.startsWith("cards-");
+    const isGamePage = page === "game";
     const [activeCardIds, setActiveCardIds] = useState<string[]>(loadActiveCardIds);
     const [cardLibrary, setCardLibrary] = useState<SavedBingoCard[]>([]);
     const [libraryLoading, setLibraryLoading] = useState(true);
@@ -436,13 +482,88 @@ function App() {
         setVoiceEnabled(!voiceEnabled);
     }
 
+    // Add one history entry per screen. Browser Back/Forward restores that screen.
+    // A backward navigation through the app's own buttons reuses existing entries.
+    function navigate(pageToOpen: BingoPage) {
+        if (pageToOpen === page) return;
+        const historyEntry = currentBingoHistory();
+        const trail = historyEntry?.trail ?? [page];
+        const nextEntry: BingoHistoryEntry = {
+            bingo54321: true, page: pageToOpen, trail: [...trail, pageToOpen]
+        };
+        window.history.pushState(nextEntry, "", pageUrl(pageToOpen));
+        setPage(pageToOpen);
+        if (pageToOpen !== "game") {
+            setAutoRunning(false);
+            stopBingoAnnouncement();
+        }
+    }
+
+    function navigateBackTo(destination: BingoPage) {
+        const trail = currentBingoHistory()?.trail ?? [];
+        const previousIndex = trail.lastIndexOf(destination, trail.length - 2);
+        if (previousIndex >= 0) {
+            window.history.go(previousIndex - (trail.length - 1));
+        } else {
+            // Direct links and refreshed pages may have no app navigation history.
+            navigate(destination);
+        }
+    }
+
+    useEffect(() => {
+        const initialPage = pageFromLocation();
+        if (!currentBingoHistory()) {
+            window.history.replaceState(
+                { bingo54321: true, page: initialPage, trail: [initialPage] } satisfies BingoHistoryEntry,
+                "", pageUrl(initialPage)
+            );
+        }
+    }, []);
+
+    useEffect(() => {
+        function onPopState() {
+            const entry = currentBingoHistory();
+            const requestedPage = entry?.page ?? pageFromLocation();
+            // A history shortcut must not reopen pregame editors after calling starts.
+            const nextPage = calledNumbers.length > 0 &&
+                (requestedPage === "register" || requestedPage.startsWith("cards-"))
+                ? "options" : requestedPage;
+            if (nextPage !== requestedPage) {
+                window.history.replaceState(
+                    { bingo54321: true, page: nextPage,
+                        trail: [...(entry?.trail.slice(0, -1) ?? []), nextPage] } satisfies BingoHistoryEntry,
+                    "", pageUrl(nextPage)
+                );
+            }
+            setPage(nextPage);
+            // Never resume an automatic timer when returning via browser history.
+            setAutoRunning(false);
+            stopBingoAnnouncement();
+        }
+        window.addEventListener("popstate", onPopState);
+        return () => window.removeEventListener("popstate", onPopState);
+    }, [calledNumbers.length]);
+
     function handleOpenOptions() {
         // Avoid calling numbers while the host is reviewing the settings.
         if (autoRunning) {
             setAutoRunning(false);
             stopBingoAnnouncement();
         }
-        setShowOptions(true);
+        navigate("options");
+    }
+
+    function handleOpenAbout(returnToOptions: boolean) {
+        // The host should not miss a call while reading instructions.
+        if (autoRunning) {
+            setAutoRunning(false);
+            stopBingoAnnouncement();
+        }
+        navigate(returnToOptions ? "about-options" : "about-game");
+    }
+
+    function handleCloseAbout() {
+        navigateBackTo(page === "about-options" ? "options" : "game");
     }
 
     function handlePrintCards() {
@@ -450,7 +571,7 @@ function App() {
             return;
         }
 
-        setShowCardPrinter(true);
+        navigate("cards-generate");
     }
 
     const automaticButtonText = autoRunning
@@ -461,27 +582,42 @@ function App() {
 
 
     return (
-        <main className={`bingo-app${!showOptions && !showActiveCards && !showCardPrinter ? " bingo-game-screen" : ""}`}>
-            {showActiveCards ? (
+        <main className={`bingo-app${isGamePage ? " bingo-game-screen" : ""}`}>
+            <nav className="bingo-site-nav" aria-label="Phil's Handy Apps navigation">
+                <a href="https://philshandyapps.phillipgaley.com/" aria-label="Phil's Handy Apps Home">
+                    <img src={`${import.meta.env.BASE_URL}pha-home-icon.png`} alt="" />
+                    <span>Phil's Handy Apps</span>
+                </a>
+            </nav>
+            {/* Stay mounted so Back/Forward preserves an unsaved card selection or preview. */}
+            <div hidden={!isCardPage}>
+                <PrintableCards
+                    onBack={() => navigateBackTo("options")}
+                    view={page === "cards-saved" ? "saved" : page === "cards-preview" ? "preview" : "generate"}
+                    onViewChange={nextView => navigate(`cards-${nextView}`)}
+                />
+            </div>
+            {page === "register" ? (
                 <ActiveCards
                     activeIds={activeCardIds}
                     onSave={ids => {
                         setActiveCardIds(ids);
                         void reloadCardLibrary();
                     }}
-                    onBack={() => setShowActiveCards(false)}
+                    onBack={() => navigateBackTo("options")}
                 />
-            ) : showCardPrinter ? (
-                <PrintableCards
-                    onBack={() => setShowCardPrinter(false)}
-                />
-            ) : showOptions ? (
+            ) : isCardPage ? null : page === "about-game" || page === "about-options" ? (
+                <AboutBingo onBack={handleCloseAbout} backLabel={page === "about-options" ? "Back to Options" : "Return to Game"} />
+            ) : page === "options" ? (
                 <section className="bingo-options-view" aria-label="Bingo game options">
                     <header className="bingo-options-header">
                         <h1>54321-BINGO! — Options</h1>
                         <p>Set up your cards and winner limit before calling begins.</p>
                     </header>
                     <div className="bingo-options-actions">
+                        <button type="button" className="bingo-help-button" onClick={() => handleOpenAbout(true)}>
+                            About &amp; How to Play
+                        </button>
                         <button
                             type="button"
                             className="print-cards-button"
@@ -493,7 +629,7 @@ function App() {
                         <button
                             type="button"
                             className="register-cards-button"
-                            onClick={() => setShowActiveCards(true)}
+                            onClick={() => navigate("register")}
                             disabled={calledNumbers.length > 0}
                         >
                             Register Active Cards
@@ -543,23 +679,33 @@ function App() {
                     <button
                         type="button"
                         className="bingo-return-button"
-                        onClick={() => setShowOptions(false)}
+                        onClick={() => navigateBackTo("game")}
                     >
                         Return to Game
                     </button>
+                    <footer className="bingo-info-footer">
+                        <nav aria-label="Information links">
+                            <button type="button" onClick={() => handleOpenAbout(true)}>About &amp; How to Play</button>
+                            <span aria-hidden="true">|</span>
+                            <a href="https://phillipgaley.com/contact-us">Contact Us</a>
+                            <span aria-hidden="true">|</span>
+                            <a href="https://phillipgaley.com/privacy-policy">Privacy Policy</a>
+                        </nav>
+                    </footer>
                 </section>
             ) : (
                 <>
                     <header className="bingo-header">
                         <h1>54321-BINGO!</h1>
                         <p>Turn Your TV Into a Bingo Hall!</p>
-                        <button
-                            type="button"
-                            className="bingo-options-button"
-                            onClick={handleOpenOptions}
-                        >
-                            Options
-                        </button>
+                        <div className="bingo-game-header-actions">
+                            <button type="button" className="bingo-options-button" onClick={handleOpenOptions}>
+                                Options
+                            </button>
+                            <button type="button" className="bingo-options-button bingo-about-shortcut" onClick={() => handleOpenAbout(false)}>
+                                How to Play
+                            </button>
+                        </div>
                     </header>
                     <p className="bingo-active-status" role="status">
                         <span>Active Cards: <strong>{activeCardIds.length}</strong></span>

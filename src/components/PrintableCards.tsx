@@ -9,6 +9,8 @@ import type { BingoCard, BingoLetter } from "../types/bingoTypes";
 
 interface PrintableCardsProps {
     onBack: () => void;
+    view: View;
+    onViewChange: (nextView: View) => void;
 }
 
 const LETTERS: BingoLetter[] = ["B", "I", "N", "G", "O"];
@@ -43,8 +45,7 @@ function BingoCardView({ card }: { card: BingoCard }) {
     );
 }
 
-export default function PrintableCards({ onBack }: PrintableCardsProps) {
-    const [view, setView] = useState<View>("generate");
+export default function PrintableCards({ onBack, view, onViewChange }: PrintableCardsProps) {
     const [cardCount, setCardCount] = useState(10);
     const [cards, setCards] = useState<BingoCard[]>([]);
     const [savedCards, setSavedCards] = useState<SavedBingoCard[]>([]);
@@ -101,7 +102,7 @@ export default function PrintableCards({ onBack }: PrintableCardsProps) {
             const saved = await saveBingoCards(generatedCards);
             await reloadLibrary();
             setCards(saved);
-            setView("preview");
+            onViewChange("preview");
             setStorageMessage(`${generatedCards.length} new cards saved to this browser's card library.`);
         } catch (error) {
             setStorageError(error instanceof Error
@@ -117,7 +118,7 @@ export default function PrintableCards({ onBack }: PrintableCardsProps) {
         setCards(previewCards);
         setStorageMessage("");
         setStorageError("");
-        setView("preview");
+        onViewChange("preview");
     }
 
     function toggleSelection(id: string) {
@@ -129,7 +130,7 @@ export default function PrintableCards({ onBack }: PrintableCardsProps) {
     function showSavedCards() {
         setStorageMessage("");
         setStorageError("");
-        setView("saved");
+        onViewChange("saved");
     }
 
     return (
@@ -139,7 +140,7 @@ export default function PrintableCards({ onBack }: PrintableCardsProps) {
 
                 <div className="bingo-library-navigation">
                     {view !== "generate" && (
-                        <button type="button" onClick={() => setView("generate")} disabled={isSaving}>
+                        <button type="button" onClick={() => onViewChange("generate")} disabled={isSaving}>
                             Generate New Cards
                         </button>
                     )}
