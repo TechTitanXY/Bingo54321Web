@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BingoBoard from "./components/BingoBoard";
 import { callNextNumber } from "./services/bingoService";
 import type { BingoCall } from "./types/bingoTypes";
 import type { SavedBingoCard } from "./services/bingoCardStorage";
-import { getSavedBingoCards } from "./services/bingoCardStorage";
+import { createBingoCardBackup, getSavedBingoCards, restoreBingoCardBackup } from "./services/bingoCardStorage";
 import { findBingoWinners } from "./services/bingoWinnerService";
 import BingoWinners from "./components/BingoWinners";
 import { playWinnerChime, stopWinnerChime, unlockWinnerChime } from "./services/bingoWinnerChime";
@@ -194,6 +194,11 @@ function App() {
     const [cardLibrary, setCardLibrary] = useState<SavedBingoCard[]>([]);
     const [libraryLoading, setLibraryLoading] = useState(true);
     const [libraryError, setLibraryError] = useState("");
+    const [backupBusy, setBackupBusy] = useState(false);
+    const [backupMessage, setBackupMessage] = useState("");
+    const [backupError, setBackupError] = useState("");
+    const [libraryRevision, setLibraryRevision] = useState(0);
+    const restoreFileRef = useRef<HTMLInputElement>(null);
     const [winnerNotice, setWinnerNotice] = useState("");
     const [celebratingIds, setCelebratingIds] = useState<string[]>([]);
     const [winnerBellEnabled, setWinnerBellEnabled] = useState(loadWinnerBellPreference);
@@ -574,6 +579,57 @@ function App() {
         navigate("cards-generate");
     }
 
+    async function handleBackupCards() {
+        if (backupBusy) return;
+        setBackupBusy(true);
+        setBackupError("");
+        setBackupMessage("");
+        try {
+            const backup = await createBingoCardBackup();
+            const contents = JSON.stringify(backup, null, 2);
+            const url = URL.createObjectURL(new Blob([contents], { type: "application/json" }));
+            const anchor = document.createElement("a");
+            anchor.href = url;
+            anchor.download = `54321-BINGO-Cards-Backup-${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+            window.setTimeout(() => URL.revokeObjectURL(url), 30000);
+            setBackupMessage(`${backup.cards.length} saved card(s) included in the downloaded backup. Keep the file somewhere safe.`);
+        } catch (error) {
+            setBackupError(error instanceof Error ? error.message : "Unable to create a card backup.");
+        } finally {
+            setBackupBusy(false);
+        }
+    }
+
+    async function handleRestoreFile(file: File | undefined) {
+        if (!file || backupBusy || calledNumbers.length > 0) return;
+        setBackupError("");
+        setBackupMessage("");
+        if (file.size > 20 * 1024 * 1024) {
+            setBackupError("Backup file is too large (20 MB maximum). No cards were changed.");
+            return;
+        }
+        if (!window.confirm(
+            `Restore cards from ${file.name}? Existing cards will be kept. Conflicting Card IDs will cancel the entire restore.`
+        )) return;
+        setBackupBusy(true);
+        try {
+            const backupData: unknown = JSON.parse(await file.text());
+            // The game may have started while the file was being read.
+            if (calledNumbers.length > 0) throw new Error("Finish the current game before restoring cards.");
+            const result = await restoreBingoCardBackup(backupData);
+            await reloadCardLibrary();
+            setLibraryRevision(previous => previous + 1);
+            setBackupMessage(`Restore complete: ${result.added} card(s) added, ${result.alreadyPresent} already present. ${result.total} card(s) verified from the backup.`);
+        } catch (error) {
+            setBackupError(error instanceof Error ? error.message : "The backup could not be restored. No cards were changed.");
+        } finally {
+            setBackupBusy(false);
+        }
+    }
+
     const automaticButtonText = autoRunning
         ? "Pause Auto"
         : autoHasStarted
@@ -592,6 +648,7 @@ function App() {
             {/* Stay mounted so Back/Forward preserves an unsaved card selection or preview. */}
             <div hidden={!isCardPage}>
                 <PrintableCards
+                    key={libraryRevision}
                     onBack={() => navigateBackTo("options")}
                     view={page === "cards-saved" ? "saved" : page === "cards-preview" ? "preview" : "generate"}
                     onViewChange={nextView => navigate(`cards-${nextView}`)}
@@ -635,6 +692,29 @@ function App() {
                             Register Active Cards
                         </button>
                     </div>
+                    <section className="bingo-backup-card" aria-labelledby="bingo-backup-heading">
+                        <h2 id="bingo-backup-heading">Protect Your Saved Cards</h2>
+                        <p>Download a backup of every saved Bingo card before clearing browser site data or changing computers.</p>
+                        <div className="bingo-backup-actions">
+                            <button type="button" disabled={backupBusy} onClick={() => void handleBackupCards()}>
+                                {backupBusy ? "Working..." : "Backup Cards"}
+                            </button>
+                            <button type="button" disabled={backupBusy || calledNumbers.length > 0}
+                                onClick={() => restoreFileRef.current?.click()}>
+                                Restore Cards
+                            </button>
+                            <input ref={restoreFileRef} type="file" accept=".json,application/json"
+                                aria-label="Choose a Bingo card backup file" className="bingo-backup-file"
+                                onChange={event => {
+                                    const file = event.target.files?.[0];
+                                    event.target.value = "";
+                                    void handleRestoreFile(file);
+                                }} />
+                        </div>
+                        {calledNumbers.length > 0 && <p className="bingo-backup-note">Restoring is available before the first number is called. Backups can still be downloaded.</p>}
+                        {backupMessage && <p className="bingo-backup-success" role="status">{backupMessage}</p>}
+                        {backupError && <p className="bingo-storage-error" role="alert">{backupError}</p>}
+                    </section>
                     {calledNumbers.length > 0 && (
                         <p className="bingo-options-locked" role="status">
                             Pregame options are locked after the first number is called.

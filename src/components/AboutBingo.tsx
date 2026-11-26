@@ -25,6 +25,7 @@ export default function AboutBingo({ onBack, backLabel }: AboutBingoProps) {
                 <a href="#bingo-guide-calling">4. Call numbers</a>
                 <a href="#bingo-guide-winners">5. Announce winners</a>
                 <a href="#bingo-guide-next">6. Play another game</a>
+                <a href="#bingo-guide-backup">7. Back up and restore cards</a>
             </nav>
 
             <section id="bingo-guide-cards">
@@ -114,6 +115,31 @@ export default function AboutBingo({ onBack, backLabel }: AboutBingoProps) {
                 </p>
             </section>
 
+            <section id="bingo-guide-backup">
+                <h2>7. Back up and restore your saved cards</h2>
+                <p>
+                    Your card library lives in this browser, so clearing cookies and site data,
+                    using private browsing, or changing devices may remove the library. To protect
+                    your reusable printed cards, open <strong>Options → Backup Cards</strong> and
+                    download a JSON backup file. Store it outside the browser, such as in your
+                    Documents folder, on a USB drive, or in trusted cloud storage.
+                </p>
+                <p>
+                    To recover the original Card IDs and their exact numbers, open
+                    <strong> Options → Restore Cards</strong>, choose that backup file, and confirm.
+                    Existing cards are kept; matching cards are skipped, and conflicting IDs
+                    stop the entire import without overwriting any card. The numbering sequence
+                    is preserved, so newly generated cards don't reuse previously assigned IDs.
+                    Restoration is available only before a game starts.
+                </p>
+                <p>
+                    <strong>Important:</strong> Download an updated backup whenever you generate
+                    additional cards. A backup cannot recover cards created after that file was
+                    downloaded. Without a backup, deleted browser storage usually cannot be recovered.
+                    The file does not upload to Hostinger; you keep and control it yourself.
+                </p>
+            </section>
+
             <section>
                 <h2>Using a TV or projector</h2>
                 <p>
@@ -136,8 +162,9 @@ export default function AboutBingo({ onBack, backLabel }: AboutBingoProps) {
                 <p>
                     In particular, cards created while testing on <strong>localhost</strong>
                     do not automatically appear on the published Hostinger website. Generate
-                    and keep the cards you intend to use on the live site. Avoid clearing browser
-                    site data if you need to keep your saved card library.
+                    and keep the cards you intend to use on the live site. Before clearing browser
+                    site data, download a card-library backup from Options so your printed cards
+                    can be restored later.
                 </p>
             </section>
 
@@ -150,7 +177,7 @@ export default function AboutBingo({ onBack, backLabel }: AboutBingoProps) {
                 <h3>Why did the winner stop flashing?</h3>
                 <p>The flashing ends when play resumes. Devices configured to reduce animation display a steady gold highlight instead.</p>
                 <h3>Do cards transfer to another device?</h3>
-                <p>No. Card libraries are browser-local; printing physical cards does not synchronize the digital library.</p>
+                <p>Not automatically. Download a card-library backup on the old device and restore it on the new one.</p>
             </section>
 
             <p className="bingo-about-copyright">© 2026 Phillip Galey</p>

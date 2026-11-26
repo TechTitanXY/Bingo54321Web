@@ -1227,3 +1227,41 @@
 @media print {
     .bingo-site-nav, .bingo-info-footer, .bingo-about-view, .bingo-game-header-actions { display: none !important; }
 }
+
+
+/* Phase 7: card-library backup and restore live on the Options screen only.
+   The fullscreen game board and 2-per-letter-page printing are unchanged. */
+.bingo-backup-card {
+    margin: 0 auto 20px;
+    padding: 20px 24px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    background: #fff;
+    color: #173d75;
+    font-size: 18px;
+}
+.bingo-backup-card h2 { margin: 0 0 10px; font-size: 25px; }
+.bingo-backup-card > p { margin: 10px 0 14px; line-height: 1.5; }
+.bingo-backup-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+.bingo-backup-actions button {
+    min-height: 48px;
+    padding: 12px 20px;
+    background: #173d75;
+    color: #fff;
+    border: 0;
+    border-radius: 7px;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.bingo-backup-actions button:hover:not(:disabled) { background: #285394; }
+.bingo-backup-actions button:disabled { background: #94a3b8; cursor: not-allowed; }
+.bingo-backup-file { display: none; }
+.bingo-backup-card .bingo-backup-success { color: #166534; font-weight: 700; }
+.bingo-backup-card .bingo-backup-note { color: #713f12; font-size: 16px; }
+@media screen and (max-width: 600px) {
+    .bingo-backup-card { padding: 16px 12px; font-size: 16px; }
+    .bingo-backup-card h2 { font-size: 22px; }
+    .bingo-backup-actions button { font-size: 16px; }
+}
+@media print { .bingo-backup-card { display: none !important; } }
