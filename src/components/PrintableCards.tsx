@@ -138,14 +138,18 @@ export default function PrintableCards({ onBack }: PrintableCardsProps) {
                 <h2>{view === "saved" ? "Saved Bingo Cards" : view === "preview" ? "Bingo Card Preview" : "Print Bingo Cards"}</h2>
 
                 <div className="bingo-library-navigation">
-                    <button type="button" onClick={() => setView("generate")} disabled={isSaving}>
-                        Generate New Cards
-                    </button>
-                    <button type="button" onClick={showSavedCards} disabled={isSaving}>
-                        Saved Cards ({savedCards.length})
-                    </button>
+                    {view !== "generate" && (
+                        <button type="button" onClick={() => setView("generate")} disabled={isSaving}>
+                            Generate New Cards
+                        </button>
+                    )}
+                    {view !== "saved" && (
+                        <button type="button" onClick={showSavedCards} disabled={isSaving}>
+                            Saved Cards ({savedCards.length})
+                        </button>
+                    )}
                     <button type="button" onClick={onBack} disabled={isSaving} className="print-back-button">
-                        Back to Game
+                        Back to Options
                     </button>
                 </div>
 

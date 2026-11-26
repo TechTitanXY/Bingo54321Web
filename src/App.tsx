@@ -20,6 +20,9 @@ const STORAGE_KEY = "54321-bingo-called-numbers";
 const VOICE_STORAGE_KEY = "54321-bingo-voice-enabled";
 const ACTIVE_CARDS_STORAGE_KEY = "54321-bingo-active-card-ids";
 const WINNER_BELL_KEY = "54321-bingo-winner-bell-enabled";
+const WINNER_LIMIT_ENABLED_KEY = "54321-bingo-winner-limit-enabled";
+const WINNER_LIMIT_COUNT_KEY = "54321-bingo-winner-limit-count";
+const MAX_CARD_COUNT = 25974;
 
 function loadActiveCardIds(): string[] {
     try {
@@ -38,6 +41,29 @@ function loadWinnerBellPreference(): boolean {
     } catch {
         return true;
     }
+}
+
+function loadWinnerLimitEnabled(): boolean {
+    try {
+        return localStorage.getItem(WINNER_LIMIT_ENABLED_KEY) === "true";
+    } catch {
+        return false;
+    }
+}
+
+function loadWinnerLimitCount(): number {
+    try {
+        const value = localStorage.getItem(WINNER_LIMIT_COUNT_KEY);
+        if (value !== null) {
+            const count = Number(value);
+            if (Number.isSafeInteger(count) && count >= 1 && count <= MAX_CARD_COUNT) {
+                return count;
+            }
+        }
+    } catch {
+        // The default is still usable without local storage.
+    }
+    return 5;
 }
 
 function loadVoicePreference(): boolean {
@@ -115,6 +141,7 @@ function loadSavedNumbers(): BingoCall[] {
 function App() {
     const [calledNumbers, setCalledNumbers] =
         useState<BingoCall[]>(loadSavedNumbers);
+    const [showOptions, setShowOptions] = useState(false);
     const [showCardPrinter, setShowCardPrinter] = useState(false);
     const [showActiveCards, setShowActiveCards] = useState(false);
     const [activeCardIds, setActiveCardIds] = useState<string[]>(loadActiveCardIds);
@@ -124,6 +151,8 @@ function App() {
     const [winnerNotice, setWinnerNotice] = useState("");
     const [celebratingIds, setCelebratingIds] = useState<string[]>([]);
     const [winnerBellEnabled, setWinnerBellEnabled] = useState(loadWinnerBellPreference);
+    const [winnerLimitEnabled, setWinnerLimitEnabled] = useState(loadWinnerLimitEnabled);
+    const [winnerLimitCount, setWinnerLimitCount] = useState(loadWinnerLimitCount);
 
     useEffect(() => {
         try {
@@ -132,6 +161,15 @@ function App() {
             // A bell preference can still work for the current page without storage.
         }
     }, [winnerBellEnabled]);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(WINNER_LIMIT_ENABLED_KEY, String(winnerLimitEnabled));
+            localStorage.setItem(WINNER_LIMIT_COUNT_KEY, String(winnerLimitCount));
+        } catch {
+            // The settings still work for the current page without storage.
+        }
+    }, [winnerLimitEnabled, winnerLimitCount]);
 
     const reloadCardLibrary = useCallback(async () => {
         try {
@@ -243,7 +281,14 @@ function App() {
     // Keep registrations intact so New Game can use the same cards again.
     const allRegisteredCardsWon = activeCardIds.length > 0 &&
         !cardsUnavailable && winners.length === registeredCards.length;
-    const isGameComplete = calledNumbers.length === 75 || allRegisteredCardsWon;
+    // A simultaneous winning call may legitimately exceed the chosen limit.
+    // Count distinct winning cards, not the number of completed Bingo lines.
+    const winnerLimitReached = winnerLimitEnabled &&
+        winners.length >= winnerLimitCount;
+    const isGameComplete = calledNumbers.length === 75 ||
+        allRegisteredCardsWon || winnerLimitReached;
+    const effectiveWinnerLimit = Math.min(winnerLimitCount, activeCardIds.length);
+    const remainingWinners = Math.max(0, effectiveWinnerLimit - winners.length);
 
     useEffect(() => {
         if (completionPhase === "idle") {
@@ -391,6 +436,15 @@ function App() {
         setVoiceEnabled(!voiceEnabled);
     }
 
+    function handleOpenOptions() {
+        // Avoid calling numbers while the host is reviewing the settings.
+        if (autoRunning) {
+            setAutoRunning(false);
+            stopBingoAnnouncement();
+        }
+        setShowOptions(true);
+    }
+
     function handlePrintCards() {
         if (calledNumbers.length !== 0 || autoRunning) {
             return;
@@ -407,7 +461,7 @@ function App() {
 
 
     return (
-        <main className="bingo-app">
+        <main className={`bingo-app${!showOptions && !showActiveCards && !showCardPrinter ? " bingo-game-screen" : ""}`}>
             {showActiveCards ? (
                 <ActiveCards
                     activeIds={activeCardIds}
@@ -421,32 +475,97 @@ function App() {
                 <PrintableCards
                     onBack={() => setShowCardPrinter(false)}
                 />
+            ) : showOptions ? (
+                <section className="bingo-options-view" aria-label="Bingo game options">
+                    <header className="bingo-options-header">
+                        <h1>54321-BINGO! — Options</h1>
+                        <p>Set up your cards and winner limit before calling begins.</p>
+                    </header>
+                    <div className="bingo-options-actions">
+                        <button
+                            type="button"
+                            className="print-cards-button"
+                            onClick={handlePrintCards}
+                            disabled={calledNumbers.length > 0}
+                        >
+                            Print Bingo Cards
+                        </button>
+                        <button
+                            type="button"
+                            className="register-cards-button"
+                            onClick={() => setShowActiveCards(true)}
+                            disabled={calledNumbers.length > 0}
+                        >
+                            Register Active Cards
+                        </button>
+                    </div>
+                    {calledNumbers.length > 0 && (
+                        <p className="bingo-options-locked" role="status">
+                            Pregame options are locked after the first number is called.
+                            Return to Game to continue, or start a New Game to change them.
+                        </p>
+                    )}
+                    <div className="bingo-options-card">
+                        <h2>Winner Limit</h2>
+                        <div className="bingo-winner-limit-settings" role="group" aria-label="Winner limit settings">
+                            <label className="bingo-winner-limit-toggle">
+                                <input
+                                    type="checkbox"
+                                    checked={winnerLimitEnabled}
+                                    disabled={calledNumbers.length > 0}
+                                    onChange={event => setWinnerLimitEnabled(event.target.checked)}
+                                />
+                                Limit the number of winners
+                            </label>
+                            <label className="bingo-winner-limit-count-label">
+                                Maximum winners
+                                <input
+                                    type="number"
+                                    min={1}
+                                    max={MAX_CARD_COUNT}
+                                    step={1}
+                                    value={winnerLimitCount}
+                                    disabled={!winnerLimitEnabled || calledNumbers.length > 0}
+                                    onChange={event => {
+                                        const next = Number(event.target.value);
+                                        if (Number.isSafeInteger(next) && next >= 1 && next <= MAX_CARD_COUNT) {
+                                            setWinnerLimitCount(next);
+                                        }
+                                    }}
+                                />
+                            </label>
+                            {!winnerLimitEnabled && (
+                                <span className="bingo-winner-limit-off">No winner limit</span>
+                            )}
+                        </div>
+                    </div>
+                    <p className="bingo-options-registered">Active Cards: <strong>{activeCardIds.length}</strong></p>
+                    <button
+                        type="button"
+                        className="bingo-return-button"
+                        onClick={() => setShowOptions(false)}
+                    >
+                        Return to Game
+                    </button>
+                </section>
             ) : (
                 <>
                     <header className="bingo-header">
                         <h1>54321-BINGO!</h1>
                         <p>Turn Your TV Into a Bingo Hall!</p>
-
-                        {calledNumbers.length === 0 && (
-                            <div className="bingo-header-actions">
-                            <button
-                                type="button"
-                                className="print-cards-button"
-                                onClick={handlePrintCards}
-                            >
-                                Print Bingo Cards
-                            </button>
-                            <button type="button" className="register-cards-button"
-                                onClick={() => setShowActiveCards(true)}>
-                                Register Active Cards
-                            </button>
-                            </div>
-                        )}
+                        <button
+                            type="button"
+                            className="bingo-options-button"
+                            onClick={handleOpenOptions}
+                        >
+                            Options
+                        </button>
                     </header>
-
                     <p className="bingo-active-status" role="status">
-                        Active cards registered: <strong>{activeCardIds.length}</strong>
-                        {calledNumbers.length > 0 ? " (registration locked during this game)" : ""}
+                        <span>Active Cards: <strong>{activeCardIds.length}</strong></span>
+                        {winnerLimitEnabled && (
+                            <span>Remaining Winners: <strong>{remainingWinners} of {effectiveWinnerLimit}</strong></span>
+                        )}
                     </p>
                     <section className="current-call-panel">
                         <h2>Current Number</h2>
@@ -477,91 +596,101 @@ function App() {
                     {winnerNotice && calledNumbers.length > 0 && (
                         <p className="bingo-winner-notice" role="status">{winnerNotice}</p>
                     )}
-                    {allRegisteredCardsWon && (
+                    {allRegisteredCardsWon ? (
                         <p className="bingo-game-complete-notice" role="status">
                             All registered cards have won! Game complete.
                         </p>
-                    )}
-                    <section className="bingo-controls">
-                        <button
-                            type="button"
-                            onClick={handleNextNumber}
-                            disabled={isGameComplete || autoRunning || cardsUnavailable}
-                        >
-                            Call Next Number
-                        </button>
+                    ) : winnerLimitReached ? (
+                        <p className="bingo-game-complete-notice" role="status">
+                            Winner limit of {winnerLimitCount} reached!
+                            {winners.length > winnerLimitCount &&
+                                ` ${winners.length} cards won because of simultaneous Bingo wins.`}
+                            {" "}Game complete.
+                        </p>
+                    ) : null}
 
-                        <button
-                            type="button"
-                            className="new-game-button"
-                            onClick={handleNewGame}
-                        >
-                            New Game
-                        </button>
 
-                        <button
-                            type="button"
-                            className="bingo-bell-button"
-                            onClick={() => {
-                                unlockWinnerChime();
-                                if (winnerBellEnabled) stopWinnerChime();
-                                setWinnerBellEnabled(enabled => !enabled);
-                            }}
-                            aria-pressed={winnerBellEnabled}
-                        >
-                            Bell: {winnerBellEnabled ? "On" : "Off"}
-                        </button>
-
-                        <button
-                            type="button"
-                            className="voice-button"
-                            onClick={handleToggleVoice}
-                            disabled={!voiceSupported}
-                            aria-pressed={voiceEnabled}
-                        >
-                            {voiceSupported
-                                ? `Voice: ${voiceEnabled ? "On" : "Off"}`
-                                : "Voice Unavailable"}
-                        </button>
-
-                        <label className="bingo-interval-label">
-                            Every
-                            <select
-                                value={intervalSeconds}
-                                onChange={event =>
-                                    setIntervalSeconds(
-                                        Number(event.target.value)
-                                    )
-                                }
-                                aria-label="Automatic calling interval"
-                            >
-                                <option value={5}>5 sec</option>
-                                <option value={10}>10 sec</option>
-                                <option value={15}>15 sec</option>
-                                <option value={20}>20 sec</option>
-                            </select>
-                        </label>
-
-                        <button
-                            type="button"
-                            className="auto-button"
-                            onClick={handleAutomaticToggle}
-                            disabled={isGameComplete || cardsUnavailable}
-                            aria-pressed={autoRunning}
-                        >
-                            {automaticButtonText}
-                        </button>
-                    </section>
-
-                    <section className="bingo-game-layout" aria-label="Bingo board and winners">
+                    <section className="bingo-game-layout" aria-label="Bingo board and host controls">
                         <div className="bingo-board-container">
                             <BingoBoard calledNumbers={calledNumbers} />
                         </div>
-                        <BingoWinners
-                            winners={winners}
-                            celebratingIds={celebratingIds}
-                            registeredCount={activeCardIds.length}
-                        />
+                        <div className="bingo-host-panel">
+                        <section className="bingo-controls">
+                            <button
+                                type="button"
+                                onClick={handleNextNumber}
+                                disabled={isGameComplete || autoRunning || cardsUnavailable}
+                            >
+                                Call Next Number
+                            </button>
+    
+                            <button
+                                type="button"
+                                className="new-game-button"
+                                onClick={handleNewGame}
+                            >
+                                New Game
+                            </button>
+    
+                            <button
+                                type="button"
+                                className="bingo-bell-button"
+                                onClick={() => {
+                                    unlockWinnerChime();
+                                    if (winnerBellEnabled) stopWinnerChime();
+                                    setWinnerBellEnabled(enabled => !enabled);
+                                }}
+                                aria-pressed={winnerBellEnabled}
+                            >
+                                Bell: {winnerBellEnabled ? "On" : "Off"}
+                            </button>
+    
+                            <button
+                                type="button"
+                                className="voice-button"
+                                onClick={handleToggleVoice}
+                                disabled={!voiceSupported}
+                                aria-pressed={voiceEnabled}
+                            >
+                                {voiceSupported
+                                    ? `Voice: ${voiceEnabled ? "On" : "Off"}`
+                                    : "Voice Unavailable"}
+                            </button>
+    
+                            <label className="bingo-interval-label">
+                                Every
+                                <select
+                                    value={intervalSeconds}
+                                    onChange={event =>
+                                        setIntervalSeconds(
+                                            Number(event.target.value)
+                                        )
+                                    }
+                                    aria-label="Automatic calling interval"
+                                >
+                                    <option value={5}>5 sec</option>
+                                    <option value={10}>10 sec</option>
+                                    <option value={15}>15 sec</option>
+                                    <option value={20}>20 sec</option>
+                                </select>
+                            </label>
+    
+                            <button
+                                type="button"
+                                className="auto-button"
+                                onClick={handleAutomaticToggle}
+                                disabled={isGameComplete || cardsUnavailable}
+                                aria-pressed={autoRunning}
+                            >
+                                {automaticButtonText}
+                            </button>
+                        </section>
+                            <BingoWinners
+                                winners={winners}
+                                celebratingIds={celebratingIds}
+                                registeredCount={activeCardIds.length}
+                            />
+                        </div>
                     </section>
                 </>
             )}
